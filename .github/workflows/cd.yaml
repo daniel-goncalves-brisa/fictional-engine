@@ -8,8 +8,8 @@ on:
       - release/**
 
 permissions:
-    contents: write
-    packages: write
+  contents: write
+  packages: write
       
 jobs:
   cd:
@@ -27,30 +27,18 @@ jobs:
           node-version: 21
 
       - name: Install dependencies (semantic-release)
-        if: github.ref == 'refs/heads/main'    
-        run: npm install -D semantic-release @semantic-release/git @semantic-release/github @semantic-release/changelog @semantic-release/commit-analyzer @semantic-release/release-notes-generator
+        if: github.ref == 'refs/heads/main'
+        run: npm install -D semantic-release @semantic-release/git @semantic-release/github @semantic-release/changelog @semantic-release/commit-analyzer @semantic-release/release-notes-generator @semantic-release/exec
 
       - name: Run semantic-release (on main or release/*)
-        id: semantic_release
         if: github.ref == 'refs/heads/main'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Running semantic-release on ${GITHUB_REF}"
-          npx semantic-release
+        run: npx semantic-release
 
-      - name: Set IMAGE_TAG based on branch and SHA
-        id: set_tag
-        run: |
-          if [[ "${GITHUB_REF}" == refs/heads/main ]]; then
-            TAG=$(jq -r '.nextRelease.version' < ./.release.json 2>/dev/null || echo "")
-            if [[ -z "$TAG" ]]; then
-              TAG=${GITHUB_SHA}
-            fi
-            echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
-          else
-            echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
-          fi
+      - name: Set IMAGE_TAG for non-main branches
+        if: github.ref != 'refs/heads/main'
+        run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
 
       - name: Login to GitHub Container Registry (GHCR)
         uses: docker/login-action@v2
@@ -61,7 +49,7 @@ jobs:
         
       - name: lowercase github.repository
         run: |
-          echo "IMAGE_NAME=`echo ${{github.repository}} | tr '[:upper:]' '[:lower:]'`" >>${GITHUB_ENV}
+          echo "IMAGE_NAME=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> ${GITHUB_ENV}
 
       - name: Build and push Docker image to GHCR
         uses: docker/build-push-action@v5
@@ -69,18 +57,4 @@ jobs:
           context: .
           file: ./.docker/Dockerfile
           push: true
-          tags: ghcr.io/${{  env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-
-    #   - name: Update Helm manifests with new image tag
-    #     if: github.ref == 'refs/heads/main'
-    #     run: |
-    #       helm template myapp ./charts --set image.tag=${{ env.IMAGE_TAG }} > manif sts/deployment.yaml
-
-    #   - name: Commit and push manifests update (only on main)
-    #     if: github.ref == 'refs/heads/main'
-    #     run: |
-    #       git config user.name "github-actions"
-    #       git config user.email "actions@github.com"
-    #       git add manifests/deployment.yaml
-    #       git commit -m "chore: update manifests with image tag ${{ env.IMAGE_TAG }}" || echo "No changes to commit"
-    #       git push origin main
+          tags: ghcr.io/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
