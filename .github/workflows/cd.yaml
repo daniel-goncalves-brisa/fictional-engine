@@ -43,7 +43,7 @@ jobs:
         id: set_tag
         run: |
           if [[ "${GITHUB_REF}" == refs/heads/main ]]; then
-            TAG=$(jq -r '.nextRelease.version' < ./.release.json 2>/dev/null || echo "")
+            TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
             if [[ -z "$TAG" ]]; then
               TAG=${GITHUB_SHA}
             fi
